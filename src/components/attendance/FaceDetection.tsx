@@ -24,7 +24,10 @@ const FaceDetection = ({ users, onAttendanceMarked }: FaceDetectionProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const { toast } = useToast();
 
+  // Initialize the video element and cleanup on unmount
   useEffect(() => {
+    console.log("Video element reference:", videoRef.current);
+    
     return () => {
       if (isActive) {
         stopWebcam(videoRef.current);
@@ -36,6 +39,7 @@ const FaceDetection = ({ users, onAttendanceMarked }: FaceDetectionProps) => {
     setError(null);
     
     try {
+      console.log("Starting camera with video element:", videoRef.current);
       const result = await startWebcam(videoRef.current);
       
       if (result.success) {
@@ -160,6 +164,7 @@ const FaceDetection = ({ users, onAttendanceMarked }: FaceDetectionProps) => {
                   playsInline
                   muted
                   className="w-full h-full object-cover"
+                  style={{ display: 'block' }} // Ensure video is visible
                 />
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center">
@@ -192,7 +197,7 @@ const FaceDetection = ({ users, onAttendanceMarked }: FaceDetectionProps) => {
                 <AlertTitle>Error</AlertTitle>
                 <AlertDescription>
                   {error}
-                  {error.includes("permission") && (
+                  {error.includes && error.includes("permission") && (
                     <div className="mt-2">
                       <Button variant="outline" size="sm" onClick={() => setShowPermissionDialog(true)}>
                         How to fix?

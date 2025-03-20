@@ -1,4 +1,3 @@
-
 import * as faceapi from 'face-api.js';
 
 // Use a mockable API URL that works in the sandbox environment
@@ -27,7 +26,14 @@ export const loadModels = async () => {
 
 // Detect face and extract face descriptor
 export const detectFace = async (videoElement: HTMLVideoElement | null) => {
-  if (!videoElement) return null;
+  if (!videoElement) {
+    console.error("detectFace: No video element provided");
+    return {
+      detected: false,
+      confidence: 0,
+      descriptor: null
+    };
+  }
   
   try {
     // This now uses actual face-api detection instead of mock data
@@ -60,7 +66,14 @@ export const detectFace = async (videoElement: HTMLVideoElement | null) => {
 
 // Recognize face using the backend API
 export const recognizeFace = async (videoElement: HTMLVideoElement | null, knownUsers: any[]) => {
-  if (!videoElement) return null;
+  if (!videoElement) {
+    console.error("recognizeFace: No video element provided");
+    return {
+      recognized: false,
+      user: null,
+      confidence: 0
+    };
+  }
   
   try {
     // Detect face and get descriptor
@@ -112,7 +125,13 @@ export const recognizeFace = async (videoElement: HTMLVideoElement | null, known
 
 // Start webcam with improved error handling
 export const startWebcam = async (videoElement: HTMLVideoElement | null) => {
-  if (!videoElement) return { success: false, error: 'No video element provided' };
+  if (!videoElement) {
+    console.error("startWebcam: No video element provided");
+    return { 
+      success: false, 
+      error: 'No video element provided. Please try reloading the page.' 
+    };
+  }
   
   try {
     // Check if getUserMedia is supported
@@ -137,14 +156,18 @@ export const startWebcam = async (videoElement: HTMLVideoElement | null) => {
     return new Promise<{ success: boolean, error?: string }>((resolve) => {
       videoElement.onloadedmetadata = () => {
         videoElement.play()
-          .then(() => resolve({ success: true }))
+          .then(() => {
+            console.log("Video is now playing");
+            resolve({ success: true });
+          })
           .catch(playError => {
             console.error('Error playing video:', playError);
             resolve({ success: false, error: 'Failed to play video stream' });
           });
       };
       
-      videoElement.onerror = () => {
+      videoElement.onerror = (e) => {
+        console.error("Video element error:", e);
         resolve({ success: false, error: 'Error loading video stream' });
       };
     });
@@ -183,7 +206,10 @@ export const startWebcam = async (videoElement: HTMLVideoElement | null) => {
 
 // Stop webcam
 export const stopWebcam = (videoElement: HTMLVideoElement | null) => {
-  if (!videoElement) return;
+  if (!videoElement) {
+    console.error("stopWebcam: No video element provided");
+    return;
+  }
   
   try {
     const stream = videoElement.srcObject as MediaStream;
@@ -199,7 +225,13 @@ export const stopWebcam = (videoElement: HTMLVideoElement | null) => {
 
 // Enroll a user's face
 export const enrollFace = async (videoElement: HTMLVideoElement | null, userId: string) => {
-  if (!videoElement) return null;
+  if (!videoElement) {
+    console.error("enrollFace: No video element provided");
+    return {
+      success: false,
+      message: 'No video element provided'
+    };
+  }
   
   try {
     const detection = await detectFace(videoElement);
