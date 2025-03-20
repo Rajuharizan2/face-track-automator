@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -70,7 +69,15 @@ const AddUserForm = ({ onSuccess, editUser }: AddUserFormProps) => {
           description: "User has been updated successfully.",
         });
       } else {
-        await addUser(data);
+        const newUser: Omit<User, "id"> = {
+          name: data.name,
+          email: data.email,
+          department: data.department,
+          role: data.role,
+          profileImage: data.profileImage || "/placeholder.svg",
+        };
+        
+        await addUser(newUser);
         toast({
           title: "User added",
           description: "New user has been added successfully.",
