@@ -8,30 +8,83 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getUsers, getAttendance } from "@/lib/attendanceData";
 import { CalendarDays, UserCheck, UserX, Clock } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+
+// Mock data for sandbox testing
+const mockUsers = [
+  { id: "1", name: "John Doe", email: "john@example.com", department: "Engineering", role: "Developer" },
+  { id: "2", name: "Jane Smith", email: "jane@example.com", department: "Design", role: "UI Designer" },
+  { id: "3", name: "Mike Johnson", email: "mike@example.com", department: "Marketing", role: "Manager" }
+];
+
+const mockAttendance = [
+  { id: "a1", userId: "1", date: new Date().toISOString().split("T")[0], timeIn: "09:00", timeOut: "17:00", status: "present" },
+  { id: "a2", userId: "2", date: new Date().toISOString().split("T")[0], timeIn: "09:15", timeOut: "17:30", status: "late" }
+];
 
 const Dashboard = () => {
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split("T")[0]
   );
+  const [useMockData, setUseMockData] = useState(false);
   
-  const { data: users = [], isLoading: isLoadingUsers } = useQuery({
+  // Detect if we're in a sandbox environment
+  useEffect(() => {
+    // Check if we're in the sandbox environment
+    const isSandbox = window.location.hostname.includes('lovableproject.com');
+    setUseMockData(isSandbox);
+  }, []);
+  
+  const { 
+    data: users = useMockData ? mockUsers : [], 
+    isLoading: isLoadingUsers,
+    error: usersError
+  } = useQuery({
     queryKey: ["users"],
     queryFn: getUsers,
+    enabled: !useMockData,
   });
   
-  const { data: attendance = [], isLoading: isLoadingAttendance, refetch: refetchAttendance } = useQuery({
+  const { 
+    data: attendance = useMockData ? mockAttendance : [], 
+    isLoading: isLoadingAttendance, 
+    refetch: refetchAttendance,
+    error: attendanceError
+  } = useQuery({
     queryKey: ["attendance", selectedDate],
     queryFn: () => getAttendance(selectedDate),
+    enabled: !useMockData,
   });
   
-  const presentCount = attendance.filter(a => a.status === "present").length;
-  const lateCount = attendance.filter(a => a.status === "late").length;
-  const absentCount = users.length - (presentCount + lateCount);
+  const displayedUsers = useMockData ? mockUsers : users;
+  const displayedAttendance = useMockData ? mockAttendance : attendance;
+  
+  const presentCount = displayedAttendance.filter(a => a.status === "present").length;
+  const lateCount = displayedAttendance.filter(a => a.status === "late").length;
+  const absentCount = displayedUsers.length - (presentCount + lateCount);
   
   return (
     <AppLayout>
       <div className="grid gap-6 animate-fade-in">
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+        
+        {useMockData && (
+          <Alert>
+            <AlertTitle>Test Environment Detected</AlertTitle>
+            <AlertDescription>
+              Using mock data for demonstration. In a production environment, this would connect to a real database.
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {(usersError || attendanceError) && !useMockData && (
+          <Alert variant="destructive">
+            <AlertTitle>Connection Error</AlertTitle>
+            <AlertDescription>
+              Could not connect to the backend server. Please make sure the server is running at http://localhost:5000.
+            </AlertDescription>
+          </Alert>
+        )}
         
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="animate-scale-in" style={{ animationDelay: '50ms' }}>
@@ -102,10 +155,13 @@ const Dashboard = () => {
             <TabsTrigger value="records">Attendance Records</TabsTrigger>
           </TabsList>
           <TabsContent value="attendance" className="pt-4 animate-fade-in">
-            <FaceDetection users={users} onAttendanceMarked={() => refetchAttendance()} />
+            <FaceDetection 
+              users={displayedUsers} 
+              onAttendanceMarked={() => refetchAttendance()} 
+            />
           </TabsContent>
           <TabsContent value="records" className="pt-4 animate-fade-in">
-            <AttendanceTable attendance={attendance} users={users} />
+            <AttendanceTable attendance={displayedAttendance} users={displayedUsers} />
           </TabsContent>
         </Tabs>
       </div>
