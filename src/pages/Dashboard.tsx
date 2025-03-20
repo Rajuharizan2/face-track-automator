@@ -6,18 +6,18 @@ import FaceDetection from "@/components/attendance/FaceDetection";
 import AttendanceTable from "@/components/attendance/AttendanceTable";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getUsers, getAttendance } from "@/lib/attendanceData";
+import { getUsers, getAttendance, User, Attendance } from "@/lib/attendanceData";
 import { CalendarDays, UserCheck, UserX, Clock } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
-// Mock data for sandbox testing
-const mockUsers = [
-  { id: "1", name: "John Doe", email: "john@example.com", department: "Engineering", role: "Developer" },
-  { id: "2", name: "Jane Smith", email: "jane@example.com", department: "Design", role: "UI Designer" },
-  { id: "3", name: "Mike Johnson", email: "mike@example.com", department: "Marketing", role: "Manager" }
+// Mock data for sandbox testing with correct types
+const mockUsers: User[] = [
+  { id: "1", name: "John Doe", email: "john@example.com", department: "Engineering", role: "Developer", profileImage: "/placeholder.svg" },
+  { id: "2", name: "Jane Smith", email: "jane@example.com", department: "Design", role: "UI Designer", profileImage: "/placeholder.svg" },
+  { id: "3", name: "Mike Johnson", email: "mike@example.com", department: "Marketing", role: "Manager", profileImage: "/placeholder.svg" }
 ];
 
-const mockAttendance = [
+const mockAttendance: Attendance[] = [
   { id: "a1", userId: "1", date: new Date().toISOString().split("T")[0], timeIn: "09:00", timeOut: "17:00", status: "present" },
   { id: "a2", userId: "2", date: new Date().toISOString().split("T")[0], timeIn: "09:15", timeOut: "17:30", status: "late" }
 ];
