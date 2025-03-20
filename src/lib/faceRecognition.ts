@@ -1,6 +1,9 @@
 
 import * as faceapi from 'face-api.js';
 
+// API endpoint
+const API_URL = 'http://localhost:5000/api';
+
 // Initialize face-api models
 export const loadModels = async () => {
   try {
@@ -22,47 +25,63 @@ export const loadModels = async () => {
   }
 };
 
-// For demo purposes, we'll simulate face recognition
+// Detect face and extract face descriptor
 export const detectFace = async (videoElement: HTMLVideoElement | null) => {
   if (!videoElement) return null;
   
   try {
-    // Mock detection for now - in real implementation, this would use actual face-api detection
-    // const detections = await faceapi.detectAllFaces(videoElement).withFaceLandmarks().withFaceDescriptors();
+    // This now uses actual face-api detection instead of mock data
+    const detections = await faceapi.detectSingleFace(videoElement)
+      .withFaceLandmarks()
+      .withFaceDescriptor();
+    
+    if (detections) {
+      return {
+        detected: true,
+        confidence: detections.detection.score,
+        descriptor: Array.from(detections.descriptor)
+      };
+    }
+    
     return {
-      detected: true,
-      confidence: 0.95
+      detected: false,
+      confidence: 0,
+      descriptor: null
     };
   } catch (error) {
     console.error('Face detection error:', error);
     return {
       detected: false,
-      confidence: 0
+      confidence: 0,
+      descriptor: null
     };
   }
 };
 
-// Simulate recognition (in a real app, this would compare with stored face descriptors)
+// Recognize face using the backend API
 export const recognizeFace = async (videoElement: HTMLVideoElement | null, knownUsers: any[]) => {
   if (!videoElement) return null;
   
   try {
-    // In a real implementation, this would:
-    // 1. Detect the face in the video
-    // 2. Extract face descriptor
-    // 3. Compare with known face descriptors
-    // 4. Return the best match if confidence is high enough
-    
-    // For demo, we'll return a random user if face is detected
+    // Detect face and get descriptor
     const detection = await detectFace(videoElement);
     
-    if (detection && detection.detected && knownUsers.length > 0) {
-      const randomUser = knownUsers[Math.floor(Math.random() * knownUsers.length)];
-      return {
-        recognized: true,
-        user: randomUser,
-        confidence: detection.confidence
-      };
+    if (detection && detection.detected && detection.descriptor) {
+      // Send descriptor to backend for recognition
+      const response = await fetch(`${API_URL}/recognition/identify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ descriptor: detection.descriptor }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Recognition API request failed');
+      }
+      
+      const result = await response.json();
+      return result;
     }
     
     return {
@@ -92,6 +111,7 @@ export const startWebcam = async (videoElement: HTMLVideoElement | null) => {
     
     return new Promise<boolean>((resolve) => {
       videoElement.onloadedmetadata = () => {
+        videoElement.play();
         resolve(true);
       };
     });
@@ -114,5 +134,42 @@ export const stopWebcam = (videoElement: HTMLVideoElement | null) => {
     }
   } catch (error) {
     console.error('Error stopping webcam:', error);
+  }
+};
+
+// Enroll a user's face
+export const enrollFace = async (videoElement: HTMLVideoElement | null, userId: string) => {
+  if (!videoElement) return null;
+  
+  try {
+    const detection = await detectFace(videoElement);
+    
+    if (detection && detection.detected && detection.descriptor) {
+      // Send descriptor to backend for enrollment
+      const response = await fetch(`${API_URL}/recognition/enroll/${userId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ descriptor: detection.descriptor }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Face enrollment API request failed');
+      }
+      
+      return await response.json();
+    }
+    
+    return {
+      success: false,
+      message: 'No face detected'
+    };
+  } catch (error) {
+    console.error('Face enrollment error:', error);
+    return {
+      success: false,
+      message: error.message
+    };
   }
 };

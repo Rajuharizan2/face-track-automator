@@ -1,4 +1,3 @@
-
 export interface User {
   id: string;
   name: string;
@@ -18,7 +17,225 @@ export interface Attendance {
   status: 'present' | 'absent' | 'late';
 }
 
-// Mock data
+const API_URL = 'http://localhost:5000/api';
+
+export const getUsers = async (): Promise<User[]> => {
+  try {
+    const response = await fetch(`${API_URL}/users`);
+    if (!response.ok) throw new Error('Failed to fetch users');
+    return await response.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    
+    // Return mock data as fallback during development
+    return mockUsers;
+  }
+};
+
+export const getUser = async (id: string): Promise<User | undefined> => {
+  try {
+    const response = await fetch(`${API_URL}/users/${id}`);
+    if (!response.ok) throw new Error('Failed to fetch user');
+    return await response.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    
+    // Return mock data as fallback during development
+    return mockUsers.find(user => user.id === id);
+  }
+};
+
+export const addUser = async (user: Omit<User, 'id'>): Promise<User> => {
+  try {
+    const response = await fetch(`${API_URL}/users`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(user),
+    });
+    
+    if (!response.ok) throw new Error('Failed to add user');
+    return await response.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    
+    // Mock response during development
+    const newUser = {
+      ...user,
+      id: `${mockUsers.length + 1}`,
+    };
+    mockUsers.push(newUser);
+    return newUser;
+  }
+};
+
+export const updateUser = async (id: string, user: Partial<User>): Promise<User | undefined> => {
+  try {
+    const response = await fetch(`${API_URL}/users/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(user),
+    });
+    
+    if (!response.ok) throw new Error('Failed to update user');
+    return await response.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    
+    // Mock response during development
+    const index = mockUsers.findIndex(u => u.id === id);
+    if (index !== -1) {
+      mockUsers[index] = { ...mockUsers[index], ...user };
+      return mockUsers[index];
+    }
+    return undefined;
+  }
+};
+
+export const deleteUser = async (id: string): Promise<boolean> => {
+  try {
+    const response = await fetch(`${API_URL}/users/${id}`, {
+      method: 'DELETE',
+    });
+    
+    return response.ok;
+  } catch (error) {
+    console.error('API Error:', error);
+    
+    // Mock response during development
+    const index = mockUsers.findIndex(u => u.id === id);
+    if (index !== -1) {
+      mockUsers.splice(index, 1);
+      return true;
+    }
+    return false;
+  }
+};
+
+export const getAttendance = async (date?: string): Promise<Attendance[]> => {
+  try {
+    const url = date ? `${API_URL}/attendance?date=${date}` : `${API_URL}/attendance`;
+    const response = await fetch(url);
+    
+    if (!response.ok) throw new Error('Failed to fetch attendance');
+    return await response.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    
+    // Return mock data as fallback during development
+    if (date) {
+      return mockAttendance.filter(a => a.date === date);
+    }
+    return mockAttendance;
+  }
+};
+
+export const getUserAttendance = async (userId: string): Promise<Attendance[]> => {
+  try {
+    const response = await fetch(`${API_URL}/attendance/user/${userId}`);
+    if (!response.ok) throw new Error('Failed to fetch user attendance');
+    return await response.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    
+    // Return mock data as fallback during development
+    return mockAttendance.filter(a => a.userId === userId);
+  }
+};
+
+export const markAttendance = async (userId: string, type: 'in' | 'out'): Promise<Attendance | undefined> => {
+  try {
+    const response = await fetch(`${API_URL}/attendance/mark`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userId, type }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to mark attendance');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('API Error:', error);
+    
+    // Mock implementation during development
+    const today = new Date().toISOString().split('T')[0];
+    const now = new Date().toLocaleTimeString('en-US', { hour12: false }).slice(0, 8);
+    
+    if (type === 'in') {
+      const existingIndex = mockAttendance.findIndex(a => a.userId === userId && a.date === today);
+      
+      if (existingIndex === -1) {
+        const newAttendance: Attendance = {
+          id: `${mockAttendance.length + 1}`,
+          userId,
+          date: today,
+          timeIn: now,
+          timeOut: null,
+          status: parseInt(now.split(':')[0]) >= 9 ? 'late' : 'present',
+        };
+        mockAttendance.push(newAttendance);
+        return newAttendance;
+      } else {
+        return mockAttendance[existingIndex];
+      }
+    } else if (type === 'out') {
+      const existingIndex = mockAttendance.findIndex(a => a.userId === userId && a.date === today);
+      
+      if (existingIndex !== -1) {
+        mockAttendance[existingIndex].timeOut = now;
+        return mockAttendance[existingIndex];
+      }
+    }
+    
+    return undefined;
+  }
+};
+
+export const generateDailyReport = async (date: string): Promise<any> => {
+  try {
+    // This now returns a downloadable Excel file from the server
+    window.open(`${API_URL}/reports/daily/${date}`, '_blank');
+    
+    return {
+      success: true,
+      filename: `Attendance_Report_${date}.xlsx`,
+    };
+  } catch (error) {
+    console.error('Report generation error:', error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+};
+
+export const generateUserReport = async (userId: string, startDate: string, endDate: string): Promise<any> => {
+  try {
+    // This now returns a downloadable Excel file from the server
+    window.open(`${API_URL}/reports/user/${userId}?startDate=${startDate}&endDate=${endDate}`, '_blank');
+    
+    const user = await getUser(userId);
+    return {
+      success: true,
+      filename: `${user?.name}_Attendance_${startDate}_to_${endDate}.xlsx`,
+    };
+  } catch (error) {
+    console.error('Report generation error:', error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+};
+
 const mockUsers: User[] = [
   {
     id: '1',
@@ -123,168 +340,3 @@ const mockAttendance: Attendance[] = [
     status: 'present',
   },
 ];
-
-// API simulation functions
-export const getUsers = async (): Promise<User[]> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(mockUsers);
-    }, 500);
-  });
-};
-
-export const getUser = async (id: string): Promise<User | undefined> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(mockUsers.find(user => user.id === id));
-    }, 500);
-  });
-};
-
-export const addUser = async (user: Omit<User, 'id'>): Promise<User> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const newUser = {
-        ...user,
-        id: `${mockUsers.length + 1}`,
-      };
-      mockUsers.push(newUser);
-      resolve(newUser);
-    }, 500);
-  });
-};
-
-export const updateUser = async (id: string, user: Partial<User>): Promise<User | undefined> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const index = mockUsers.findIndex(u => u.id === id);
-      if (index !== -1) {
-        mockUsers[index] = { ...mockUsers[index], ...user };
-        resolve(mockUsers[index]);
-      } else {
-        resolve(undefined);
-      }
-    }, 500);
-  });
-};
-
-export const deleteUser = async (id: string): Promise<boolean> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const index = mockUsers.findIndex(u => u.id === id);
-      if (index !== -1) {
-        mockUsers.splice(index, 1);
-        resolve(true);
-      } else {
-        resolve(false);
-      }
-    }, 500);
-  });
-};
-
-export const getAttendance = async (date?: string): Promise<Attendance[]> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      if (date) {
-        resolve(mockAttendance.filter(a => a.date === date));
-      } else {
-        resolve(mockAttendance);
-      }
-    }, 500);
-  });
-};
-
-export const getUserAttendance = async (userId: string): Promise<Attendance[]> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(mockAttendance.filter(a => a.userId === userId));
-    }, 500);
-  });
-};
-
-export const markAttendance = async (userId: string, type: 'in' | 'out'): Promise<Attendance | undefined> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const today = new Date().toISOString().split('T')[0];
-      const now = new Date().toLocaleTimeString('en-US', { hour12: false }).slice(0, 8);
-      
-      // Check if user already has attendance for today
-      const existingIndex = mockAttendance.findIndex(a => a.userId === userId && a.date === today);
-      
-      if (type === 'in') {
-        if (existingIndex === -1) {
-          // Create new attendance record
-          const newAttendance: Attendance = {
-            id: `${mockAttendance.length + 1}`,
-            userId,
-            date: today,
-            timeIn: now,
-            timeOut: null,
-            status: parseInt(now.split(':')[0]) >= 9 ? 'late' : 'present',
-          };
-          mockAttendance.push(newAttendance);
-          resolve(newAttendance);
-        } else {
-          resolve(mockAttendance[existingIndex]);
-        }
-      } else if (type === 'out') {
-        if (existingIndex !== -1) {
-          // Update existing attendance with timeout
-          mockAttendance[existingIndex].timeOut = now;
-          resolve(mockAttendance[existingIndex]);
-        } else {
-          resolve(undefined);
-        }
-      }
-    }, 500);
-  });
-};
-
-// Export functions to generate Excel reports
-export const generateDailyReport = async (date: string): Promise<any> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const data = mockAttendance.filter(a => a.date === date).map(attendance => {
-        const user = mockUsers.find(u => u.id === attendance.userId);
-        return {
-          Name: user?.name || 'Unknown',
-          Department: user?.department || 'Unknown',
-          Date: attendance.date,
-          'Time In': attendance.timeIn,
-          'Time Out': attendance.timeOut || '-',
-          Status: attendance.status.charAt(0).toUpperCase() + attendance.status.slice(1),
-        };
-      });
-      
-      resolve({
-        filename: `Attendance_Report_${date}.xlsx`,
-        data,
-      });
-    }, 500);
-  });
-};
-
-export const generateUserReport = async (userId: string, startDate: string, endDate: string): Promise<any> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const userAttendance = mockAttendance.filter(a => {
-        return a.userId === userId && a.date >= startDate && a.date <= endDate;
-      });
-      
-      const user = mockUsers.find(u => u.id === userId);
-      const data = userAttendance.map(attendance => {
-        return {
-          Date: attendance.date,
-          'Time In': attendance.timeIn,
-          'Time Out': attendance.timeOut || '-',
-          Status: attendance.status.charAt(0).toUpperCase() + attendance.status.slice(1),
-        };
-      });
-      
-      resolve({
-        filename: `${user?.name}_Attendance_${startDate}_to_${endDate}.xlsx`,
-        data,
-      });
-    }, 500);
-  });
-};
