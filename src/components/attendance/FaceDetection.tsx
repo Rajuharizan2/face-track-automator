@@ -2,12 +2,18 @@
 import { useState, useRef, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Camera, UserCheck, AlertCircle, RefreshCw, RotateCcw } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Camera, UserCheck, AlertCircle, RefreshCw, RotateCcw, Cctv } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { startWebcam, stopWebcam, detectFace, recognizeFace } from "@/lib/faceRecognition";
 import { User, markAttendance } from "@/lib/attendanceData";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useQuery } from "@tanstack/react-query";
+import { getActiveCameras } from "@/lib/cameraData";
+import { Camera as CameraModel } from "@/lib/cameraModels";
+import { useUser } from "@clerk/clerk-react";
+import IPCameraStream from "../camera/IPCameraStream";
 
 interface FaceDetectionProps {
   users: User[];
@@ -15,28 +21,68 @@ interface FaceDetectionProps {
 }
 
 const FaceDetection = ({ users, onAttendanceMarked }: FaceDetectionProps) => {
+  const { user: currentUser } = useUser();
   const [isActive, setIsActive] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [recognizedUser, setRecognizedUser] = useState<User | null>(null);
   const [attendanceType, setAttendanceType] = useState<'in' | 'out'>('in');
   const [error, setError] = useState<string | null>(null);
   const [showPermissionDialog, setShowPermissionDialog] = useState(false);
+  const [selectedCameraId, setSelectedCameraId] = useState<string>("");
   const videoRef = useRef<HTMLVideoElement>(null);
+  const ipImageRef = useRef<HTMLImageElement>(null);
   const { toast } = useToast();
+
+  // Fetch available cameras
+  const { data: cameras = [], isLoading: isLoadingCameras } = useQuery({
+    queryKey: ["activeCameras"],
+    queryFn: getActiveCameras,
+  });
+
+  const selectedCamera = cameras.find(cam => cam.id === selectedCameraId);
+  const isIPCamera = selectedCamera?.type === 'ip';
+
+  // Set the first camera as default when cameras are loaded
+  useEffect(() => {
+    if (cameras.length > 0 && !selectedCameraId) {
+      setSelectedCameraId(cameras[0].id);
+    }
+  }, [cameras, selectedCameraId]);
 
   // Initialize the video element and cleanup on unmount
   useEffect(() => {
     console.log("Video element reference:", videoRef.current);
+    console.log("IP image reference:", ipImageRef.current);
     
     return () => {
-      if (isActive) {
+      if (isActive && !isIPCamera) {
         stopWebcam(videoRef.current);
       }
     };
-  }, [isActive]);
+  }, [isActive, isIPCamera]);
 
   const handleStartCamera = async () => {
     setError(null);
+    
+    if (!selectedCamera) {
+      setError("No camera selected");
+      toast({
+        variant: "destructive",
+        title: "Camera Error",
+        description: "Please select a camera first.",
+      });
+      return;
+    }
+
+    if (isIPCamera) {
+      // For IP cameras, we just set isActive to true as the stream is handled by IPCameraStream
+      setIsActive(true);
+      toast({
+        title: "IP Camera activated",
+        description: "Streaming from IP camera.",
+      });
+      return;
+    }
     
     try {
       console.log("Starting camera with video element:", videoRef.current);
@@ -74,7 +120,9 @@ const FaceDetection = ({ users, onAttendanceMarked }: FaceDetectionProps) => {
   };
 
   const handleStopCamera = () => {
-    stopWebcam(videoRef.current);
+    if (!isIPCamera) {
+      stopWebcam(videoRef.current);
+    }
     setIsActive(false);
     setRecognizedUser(null);
     setError(null);
@@ -87,7 +135,9 @@ const FaceDetection = ({ users, onAttendanceMarked }: FaceDetectionProps) => {
     setError(null);
     
     try {
-      const result = await recognizeFace(videoRef.current, users);
+      // For IP cameras, we use the image element instead of the video element
+      const element = isIPCamera ? ipImageRef.current : videoRef.current;
+      const result = await recognizeFace(element, users);
       
       if (result && result.recognized && result.user) {
         setRecognizedUser(result.user);
@@ -156,16 +206,65 @@ const FaceDetection = ({ users, onAttendanceMarked }: FaceDetectionProps) => {
       <Card className="w-full overflow-hidden animate-fade-in transition-all duration-300">
         <CardContent className="p-6">
           <div className="flex flex-col space-y-4">
+            {/* Camera selection */}
+            <div className="flex flex-col sm:flex-row gap-4 items-center">
+              <div className="w-full sm:w-64">
+                <Select
+                  value={selectedCameraId}
+                  onValueChange={setSelectedCameraId}
+                  disabled={isActive || isLoadingCameras}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Camera" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cameras.map((camera) => (
+                      <SelectItem key={camera.id} value={camera.id}>
+                        {camera.name} ({camera.location})
+                      </SelectItem>
+                    ))}
+                    {cameras.length === 0 && (
+                      <SelectItem value="none" disabled>
+                        No cameras available
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {!isActive && (
+                <Button
+                  onClick={() => window.location.href = "/camera-settings"}
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                >
+                  <Cctv className="h-4 w-4 mr-2" />
+                  Manage Cameras
+                </Button>
+              )}
+            </div>
+
             <div className="relative aspect-video bg-muted rounded-lg overflow-hidden">
               {isActive ? (
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover"
-                  style={{ display: 'block' }} // Ensure video is visible
-                />
+                isIPCamera ? (
+                  <IPCameraStream 
+                    camera={selectedCamera as CameraModel} 
+                    ref={ipImageRef}
+                    onError={(errorMsg) => {
+                      setError(errorMsg);
+                      setIsActive(false);
+                    }}
+                  />
+                ) : (
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover"
+                    style={{ display: 'block' }} // Ensure video is visible
+                  />
+                )
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center">
                   <Camera className="h-16 w-16 text-muted-foreground opacity-50" />
@@ -214,6 +313,7 @@ const FaceDetection = ({ users, onAttendanceMarked }: FaceDetectionProps) => {
                   <Button 
                     onClick={handleStartCamera} 
                     className="flex-1 gap-2 animate-scale-in"
+                    disabled={!selectedCameraId || cameras.length === 0}
                   >
                     <Camera className="h-4 w-4" />
                     Activate Camera

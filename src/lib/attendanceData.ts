@@ -1,3 +1,6 @@
+
+import { v4 as uuidv4 } from 'uuid';
+
 export interface User {
   id: string;
   name: string;
@@ -19,11 +22,46 @@ export interface Attendance {
 
 const API_URL = 'http://localhost:5000/api';
 
+// Initialize localStorage with default data if not already set
+const initLocalStorage = () => {
+  if (!localStorage.getItem('users')) {
+    localStorage.setItem('users', JSON.stringify(mockUsers));
+  }
+  
+  if (!localStorage.getItem('attendance')) {
+    localStorage.setItem('attendance', JSON.stringify(mockAttendance));
+  }
+};
+
+// Call this function when the application starts
+initLocalStorage();
+
+// Add event listeners for storage changes to enable real-time updates
+// This allows changes made in other tabs/windows to be reflected
+window.addEventListener('storage', (event) => {
+  if (event.key === 'users' || event.key === 'attendance') {
+    // Dispatch a custom event that components can listen for
+    window.dispatchEvent(new CustomEvent('dataUpdated', { detail: event.key }));
+  }
+});
+
 export const getUsers = async (): Promise<User[]> => {
   try {
+    // Try localStorage first for real-time data
+    const storedUsers = localStorage.getItem('users');
+    if (storedUsers) {
+      return JSON.parse(storedUsers);
+    }
+    
+    // If not in localStorage, try the API
     const response = await fetch(`${API_URL}/users`);
     if (!response.ok) throw new Error('Failed to fetch users');
-    return await response.json();
+    
+    const users = await response.json();
+    // Store in localStorage for offline access and real-time sync
+    localStorage.setItem('users', JSON.stringify(users));
+    
+    return users;
   } catch (error) {
     console.error('API Error:', error);
     
@@ -34,6 +72,15 @@ export const getUsers = async (): Promise<User[]> => {
 
 export const getUser = async (id: string): Promise<User | undefined> => {
   try {
+    // Try localStorage first for real-time data
+    const storedUsers = localStorage.getItem('users');
+    if (storedUsers) {
+      const users = JSON.parse(storedUsers);
+      const user = users.find((u: User) => u.id === id);
+      if (user) return user;
+    }
+    
+    // If not in localStorage, try the API
     const response = await fetch(`${API_URL}/users/${id}`);
     if (!response.ok) throw new Error('Failed to fetch user');
     return await response.json();
@@ -47,31 +94,52 @@ export const getUser = async (id: string): Promise<User | undefined> => {
 
 export const addUser = async (user: Omit<User, 'id'>): Promise<User> => {
   try {
+    const newUser = {
+      ...user,
+      id: uuidv4(),
+    };
+    
+    // Try API first
     const response = await fetch(`${API_URL}/users`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(user),
+      body: JSON.stringify(newUser),
     });
     
     if (!response.ok) throw new Error('Failed to add user');
-    return await response.json();
+    
+    const savedUser = await response.json();
+    
+    // Update localStorage for real-time sync
+    const storedUsers = localStorage.getItem('users');
+    const users = storedUsers ? JSON.parse(storedUsers) : [];
+    users.push(savedUser);
+    localStorage.setItem('users', JSON.stringify(users));
+    
+    return savedUser;
   } catch (error) {
     console.error('API Error:', error);
     
-    // Mock response during development
+    // Mock response during development with localStorage
     const newUser = {
       ...user,
-      id: `${mockUsers.length + 1}`,
+      id: uuidv4(),
     };
-    mockUsers.push(newUser);
+    
+    const storedUsers = localStorage.getItem('users');
+    const users = storedUsers ? JSON.parse(storedUsers) : mockUsers;
+    users.push(newUser);
+    localStorage.setItem('users', JSON.stringify(users));
+    
     return newUser;
   }
 };
 
 export const updateUser = async (id: string, user: Partial<User>): Promise<User | undefined> => {
   try {
+    // Try API first
     const response = await fetch(`${API_URL}/users/${id}`, {
       method: 'PUT',
       headers: {
@@ -81,11 +149,38 @@ export const updateUser = async (id: string, user: Partial<User>): Promise<User 
     });
     
     if (!response.ok) throw new Error('Failed to update user');
-    return await response.json();
+    
+    const updatedUser = await response.json();
+    
+    // Update localStorage for real-time sync
+    const storedUsers = localStorage.getItem('users');
+    if (storedUsers) {
+      const users = JSON.parse(storedUsers);
+      const index = users.findIndex((u: User) => u.id === id);
+      if (index !== -1) {
+        users[index] = { ...users[index], ...user };
+        localStorage.setItem('users', JSON.stringify(users));
+      }
+    }
+    
+    return updatedUser;
   } catch (error) {
     console.error('API Error:', error);
     
-    // Mock response during development
+    // Mock response during development with localStorage
+    const storedUsers = localStorage.getItem('users');
+    
+    if (storedUsers) {
+      const users = JSON.parse(storedUsers);
+      const index = users.findIndex((u: User) => u.id === id);
+      if (index !== -1) {
+        users[index] = { ...users[index], ...user };
+        localStorage.setItem('users', JSON.stringify(users));
+        return users[index];
+      }
+    }
+    
+    // Fallback to memory mock data
     const index = mockUsers.findIndex(u => u.id === id);
     if (index !== -1) {
       mockUsers[index] = { ...mockUsers[index], ...user };
@@ -97,31 +192,62 @@ export const updateUser = async (id: string, user: Partial<User>): Promise<User 
 
 export const deleteUser = async (id: string): Promise<boolean> => {
   try {
+    // Try API first
     const response = await fetch(`${API_URL}/users/${id}`, {
       method: 'DELETE',
     });
     
-    return response.ok;
+    if (!response.ok) throw new Error('Failed to delete user');
+    
+    // Update localStorage for real-time sync
+    const storedUsers = localStorage.getItem('users');
+    if (storedUsers) {
+      const users = JSON.parse(storedUsers);
+      const filteredUsers = users.filter((u: User) => u.id !== id);
+      localStorage.setItem('users', JSON.stringify(filteredUsers));
+    }
+    
+    return true;
   } catch (error) {
     console.error('API Error:', error);
     
-    // Mock response during development
-    const index = mockUsers.findIndex(u => u.id === id);
-    if (index !== -1) {
-      mockUsers.splice(index, 1);
+    // Mock response during development with localStorage
+    const storedUsers = localStorage.getItem('users');
+    
+    if (storedUsers) {
+      const users = JSON.parse(storedUsers);
+      const filteredUsers = users.filter((u: User) => u.id !== id);
+      localStorage.setItem('users', JSON.stringify(filteredUsers));
       return true;
     }
+    
     return false;
   }
 };
 
 export const getAttendance = async (date?: string): Promise<Attendance[]> => {
   try {
+    // Try localStorage first for real-time data
+    const storedAttendance = localStorage.getItem('attendance');
+    if (storedAttendance) {
+      const attendance = JSON.parse(storedAttendance);
+      if (date) {
+        return attendance.filter((a: Attendance) => a.date === date);
+      }
+      return attendance;
+    }
+    
+    // If not in localStorage, try the API
     const url = date ? `${API_URL}/attendance?date=${date}` : `${API_URL}/attendance`;
     const response = await fetch(url);
     
     if (!response.ok) throw new Error('Failed to fetch attendance');
-    return await response.json();
+    
+    const attendance = await response.json();
+    // Store in localStorage for offline access
+    localStorage.setItem('attendance', JSON.stringify(attendance));
+    
+    return attendance;
   } catch (error) {
     console.error('API Error:', error);
     
@@ -135,9 +261,19 @@ export const getAttendance = async (date?: string): Promise<Attendance[]> => {
 
 export const getUserAttendance = async (userId: string): Promise<Attendance[]> => {
   try {
+    // Try localStorage first for real-time data
+    const storedAttendance = localStorage.getItem('attendance');
+    if (storedAttendance) {
+      const attendance = JSON.parse(storedAttendance);
+      return attendance.filter((a: Attendance) => a.userId === userId);
+    }
+    
+    // If not in localStorage, try the API
     const response = await fetch(`${API_URL}/attendance/user/${userId}`);
     if (!response.ok) throw new Error('Failed to fetch user attendance');
-    return await response.json();
+    
+    const attendance = await response.json();
+    return attendance;
   } catch (error) {
     console.error('API Error:', error);
     
@@ -148,6 +284,7 @@ export const getUserAttendance = async (userId: string): Promise<Attendance[]> =
 
 export const markAttendance = async (userId: string, type: 'in' | 'out'): Promise<Attendance | undefined> => {
   try {
+    // Try API first
     const response = await fetch(`${API_URL}/attendance/mark`, {
       method: 'POST',
       headers: {
@@ -161,37 +298,80 @@ export const markAttendance = async (userId: string, type: 'in' | 'out'): Promis
       throw new Error(errorData.message || 'Failed to mark attendance');
     }
     
-    return await response.json();
+    const attendance = await response.json();
+    
+    // Update localStorage for real-time sync
+    const storedAttendance = localStorage.getItem('attendance');
+    if (storedAttendance) {
+      const attendanceList = JSON.parse(storedAttendance);
+      
+      if (type === 'in') {
+        // Add new attendance record or update existing one
+        const existingIndex = attendanceList.findIndex(
+          (a: Attendance) => a.userId === userId && a.date === attendance.date
+        );
+        
+        if (existingIndex === -1) {
+          attendanceList.push(attendance);
+        } else {
+          attendanceList[existingIndex] = attendance;
+        }
+      } else if (type === 'out') {
+        // Update existing attendance record with timeOut
+        const existingIndex = attendanceList.findIndex(
+          (a: Attendance) => a.userId === userId && a.date === attendance.date
+        );
+        
+        if (existingIndex !== -1) {
+          attendanceList[existingIndex] = attendance;
+        }
+      }
+      
+      localStorage.setItem('attendance', JSON.stringify(attendanceList));
+    }
+    
+    return attendance;
   } catch (error) {
     console.error('API Error:', error);
     
-    // Mock implementation during development
+    // Mock implementation during development with localStorage
     const today = new Date().toISOString().split('T')[0];
     const now = new Date().toLocaleTimeString('en-US', { hour12: false }).slice(0, 8);
     
+    const storedAttendance = localStorage.getItem('attendance');
+    let attendanceList = storedAttendance ? JSON.parse(storedAttendance) : mockAttendance;
+    
     if (type === 'in') {
-      const existingIndex = mockAttendance.findIndex(a => a.userId === userId && a.date === today);
+      const existingIndex = attendanceList.findIndex(
+        (a: Attendance) => a.userId === userId && a.date === today
+      );
       
       if (existingIndex === -1) {
+        const status = parseInt(now.split(':')[0]) >= 9 ? 'late' : 'present';
         const newAttendance: Attendance = {
-          id: `${mockAttendance.length + 1}`,
+          id: uuidv4(),
           userId,
           date: today,
           timeIn: now,
           timeOut: null,
-          status: parseInt(now.split(':')[0]) >= 9 ? 'late' : 'present',
+          status: status as 'present' | 'late' | 'absent',
         };
-        mockAttendance.push(newAttendance);
+        
+        attendanceList.push(newAttendance);
+        localStorage.setItem('attendance', JSON.stringify(attendanceList));
         return newAttendance;
       } else {
-        return mockAttendance[existingIndex];
+        return attendanceList[existingIndex];
       }
     } else if (type === 'out') {
-      const existingIndex = mockAttendance.findIndex(a => a.userId === userId && a.date === today);
+      const existingIndex = attendanceList.findIndex(
+        (a: Attendance) => a.userId === userId && a.date === today
+      );
       
       if (existingIndex !== -1) {
-        mockAttendance[existingIndex].timeOut = now;
-        return mockAttendance[existingIndex];
+        attendanceList[existingIndex].timeOut = now;
+        localStorage.setItem('attendance', JSON.stringify(attendanceList));
+        return attendanceList[existingIndex];
       }
     }
     

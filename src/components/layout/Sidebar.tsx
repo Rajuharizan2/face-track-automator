@@ -1,130 +1,116 @@
 
-import { useState } from "react";
-import { NavLink } from "react-router-dom";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { ChevronLeft, LayoutDashboard, Users, FileText, Settings, ClipboardCheck } from "lucide-react";
+import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  LayoutDashboard,
+  Users,
+  FileBarChart,
+  Settings,
+  Cctv
+} from 'lucide-react';
+import { UserButton } from '@clerk/clerk-react';
 
-interface SidebarProps {
+interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {
   isOpen: boolean;
-  onClose: () => void;
 }
 
-const navigationItems = [
+// Navigation items with labels and icons
+const navItems = [
   {
-    title: "Dashboard",
-    href: "/dashboard",
+    title: 'Dashboard',
+    href: '/dashboard',
     icon: <LayoutDashboard className="h-5 w-5" />,
   },
   {
-    title: "Attendance",
-    href: "/dashboard",
-    icon: <ClipboardCheck className="h-5 w-5" />,
-  },
-  {
-    title: "Users",
-    href: "/users",
+    title: 'Users',
+    href: '/users',
     icon: <Users className="h-5 w-5" />,
   },
   {
-    title: "Reports",
-    href: "/reports",
-    icon: <FileText className="h-5 w-5" />,
+    title: 'Reports',
+    href: '/reports',
+    icon: <FileBarChart className="h-5 w-5" />,
   },
   {
-    title: "Settings",
-    href: "/settings",
+    title: 'Camera Settings',
+    href: '/camera-settings',
+    icon: <Cctv className="h-5 w-5" />,
+  },
+  {
+    title: 'Settings',
+    href: '/settings',
     icon: <Settings className="h-5 w-5" />,
   },
 ];
 
-const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
+export function Sidebar({ className, isOpen }: SidebarProps) {
+  const location = useLocation();
+  const pathname = location.pathname;
+
   return (
-    <>
-      {/* Backdrop for mobile */}
-      <div
-        className={cn(
-          "fixed inset-0 z-50 bg-background/80 backdrop-blur-sm md:hidden transition-opacity duration-200",
-          isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+    <div
+      className={cn(
+        "h-full flex-col border-r bg-background transition-all duration-300",
+        isOpen ? "flex w-64" : "hidden md:flex w-16",
+        className,
+      )}
+    >
+      {/* Logo area */}
+      <div className={cn(
+        "flex h-14 items-center border-b px-4",
+        isOpen ? "justify-between" : "justify-center"
+      )}>
+        {isOpen ? (
+          <Link to="/" className="flex items-center space-x-2">
+            <span className="font-bold text-lg">FaceAttend</span>
+          </Link>
+        ) : (
+          <Link to="/" className="flex items-center justify-center">
+            <span className="font-bold text-lg">FA</span>
+          </Link>
         )}
-        onClick={onClose}
-      />
+      </div>
 
-      {/* Sidebar */}
-      <aside
-        className={cn(
-          "fixed top-0 left-0 z-50 h-full w-[280px] border-r bg-card shadow-sm transition-transform duration-300 ease-in-out md:translate-x-0",
-          isOpen ? "translate-x-0" : "-translate-x-full"
+      {/* Navigation links */}
+      <ScrollArea className="flex-1 pt-2">
+        <nav className="grid gap-1 px-2">
+          {navItems.map((item, index) => (
+            <Link key={index} to={item.href}>
+              <Button
+                variant={pathname === item.href ? "secondary" : "ghost"}
+                className={cn(
+                  "w-full justify-start",
+                  isOpen ? "px-4" : "px-0 justify-center"
+                )}
+                size={isOpen ? "default" : "icon"}
+              >
+                {item.icon}
+                {isOpen && <span className="ml-2">{item.title}</span>}
+              </Button>
+            </Link>
+          ))}
+        </nav>
+      </ScrollArea>
+
+      {/* User profile section */}
+      <div className={cn(
+        "flex items-center border-t p-4",
+        isOpen ? "justify-between" : "justify-center"
+      )}>
+        <UserButton
+          afterSignOutUrl="/"
+        />
+        {isOpen && (
+          <div className="ml-2 text-sm">
+            <p className="font-medium">Account</p>
+          </div>
         )}
-      >
-        <div className="flex h-16 items-center justify-between border-b px-6">
-          <NavLink to="/" className="flex items-center gap-2" onClick={onClose}>
-            <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-semibold">FA</span>
-            </div>
-            <span className="font-medium text-xl">FaceAttend</span>
-          </NavLink>
-          <Button variant="ghost" size="icon" onClick={onClose} className="md:hidden">
-            <ChevronLeft className="h-5 w-5" />
-          </Button>
-        </div>
-
-        <ScrollArea className="h-[calc(100vh-4rem)] py-4">
-          <nav className="grid gap-2 px-4">
-            <div className="px-2 py-2">
-              <h3 className="text-sm font-medium text-muted-foreground tracking-tight mb-2">
-                Navigation
-              </h3>
-              <div className="grid gap-1.5">
-                {navigationItems.map((item) => (
-                  <NavLink
-                    key={item.title}
-                    to={item.href}
-                    onClick={onClose}
-                    className={({ isActive }) =>
-                      cn(
-                        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                        isActive
-                          ? "bg-secondary text-accent-foreground"
-                          : "hover:bg-secondary/50 text-muted-foreground"
-                      )
-                    }
-                  >
-                    {item.icon}
-                    {item.title}
-                  </NavLink>
-                ))}
-              </div>
-            </div>
-
-            <Separator className="my-4" />
-
-            <div className="px-2 py-2">
-              <h3 className="text-sm font-medium text-muted-foreground tracking-tight mb-2">
-                Reports
-              </h3>
-              <div className="grid gap-1.5">
-                <Button variant="ghost" className="justify-start h-9 px-3 font-normal text-muted-foreground">
-                  <FileText className="mr-2 h-4 w-4" />
-                  Daily Report
-                </Button>
-                <Button variant="ghost" className="justify-start h-9 px-3 font-normal text-muted-foreground">
-                  <FileText className="mr-2 h-4 w-4" />
-                  Weekly Report
-                </Button>
-                <Button variant="ghost" className="justify-start h-9 px-3 font-normal text-muted-foreground">
-                  <FileText className="mr-2 h-4 w-4" />
-                  Monthly Report
-                </Button>
-              </div>
-            </div>
-          </nav>
-        </ScrollArea>
-      </aside>
-    </>
+      </div>
+    </div>
   );
-};
+}
 
 export default Sidebar;

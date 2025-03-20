@@ -1,3 +1,4 @@
+
 import * as faceapi from 'face-api.js';
 
 // Use a mockable API URL that works in the sandbox environment
@@ -24,10 +25,10 @@ export const loadModels = async () => {
   }
 };
 
-// Detect face and extract face descriptor
-export const detectFace = async (videoElement: HTMLVideoElement | null) => {
-  if (!videoElement) {
-    console.error("detectFace: No video element provided");
+// Detect face and extract face descriptor from video or image element
+export const detectFace = async (mediaElement: HTMLVideoElement | HTMLImageElement | null) => {
+  if (!mediaElement) {
+    console.error("detectFace: No media element provided");
     return {
       detected: false,
       confidence: 0,
@@ -37,7 +38,7 @@ export const detectFace = async (videoElement: HTMLVideoElement | null) => {
   
   try {
     // This now uses actual face-api detection instead of mock data
-    const detections = await faceapi.detectSingleFace(videoElement)
+    const detections = await faceapi.detectSingleFace(mediaElement)
       .withFaceLandmarks()
       .withFaceDescriptor();
     
@@ -65,9 +66,9 @@ export const detectFace = async (videoElement: HTMLVideoElement | null) => {
 };
 
 // Recognize face using the backend API
-export const recognizeFace = async (videoElement: HTMLVideoElement | null, knownUsers: any[]) => {
-  if (!videoElement) {
-    console.error("recognizeFace: No video element provided");
+export const recognizeFace = async (mediaElement: HTMLVideoElement | HTMLImageElement | null, knownUsers: any[]) => {
+  if (!mediaElement) {
+    console.error("recognizeFace: No media element provided");
     return {
       recognized: false,
       user: null,
@@ -77,7 +78,7 @@ export const recognizeFace = async (videoElement: HTMLVideoElement | null, known
   
   try {
     // Detect face and get descriptor
-    const detection = await detectFace(videoElement);
+    const detection = await detectFace(mediaElement);
     
     if (detection && detection.detected && detection.descriptor) {
       // In a sandbox environment, we'll use mock recognition
@@ -224,17 +225,17 @@ export const stopWebcam = (videoElement: HTMLVideoElement | null) => {
 };
 
 // Enroll a user's face
-export const enrollFace = async (videoElement: HTMLVideoElement | null, userId: string) => {
-  if (!videoElement) {
-    console.error("enrollFace: No video element provided");
+export const enrollFace = async (mediaElement: HTMLVideoElement | HTMLImageElement | null, userId: string) => {
+  if (!mediaElement) {
+    console.error("enrollFace: No media element provided");
     return {
       success: false,
-      message: 'No video element provided'
+      message: 'No media element provided'
     };
   }
   
   try {
-    const detection = await detectFace(videoElement);
+    const detection = await detectFace(mediaElement);
     
     if (detection && detection.detected && detection.descriptor) {
       // In a sandbox environment, we'll use a mock response
