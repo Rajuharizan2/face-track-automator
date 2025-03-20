@@ -1,4 +1,4 @@
-# Welcome to your Lovable project
+# Welcome to (FAMS) Face Attendance Management System
 
 ## Project info
 
